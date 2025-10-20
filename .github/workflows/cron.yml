@@ -1,16 +1,12 @@
 name: Update NBS rates
-
 on:
   schedule:
-    # Every 60 minutes from 06:00 to 18:00 UTC (≈ 08:00–20:00 Europe/Belgrade, adjust for DST)
     - cron: "0 6-18 * * 1-5"
   workflow_dispatch:
-
 permissions:
   contents: write
   pages: write
   id-token: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,8 +33,7 @@ jobs:
               if rate is not None: mid = rate
               else:
                 cb, cs = row.get("exchange_buy"), row.get("exchange_sell")
-                if cb is not None and cs is not None:
-                  mid = (cb + cs) / 2
+                if cb is not None and cs is not None: mid = (cb + cs) / 2
             if mid is None: continue
             wanted.append({"code": code, "mid": round(float(mid), 6)})
           out = {"g": datetime.datetime.utcnow().isoformat(timespec="seconds")+"Z", "rates": wanted}
