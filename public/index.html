@@ -1,55 +1,107 @@
 <!doctype html>
-<html lang="sr">
+<html lang="sr" class="theme-dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Kursna lista (NBS) · RSD</title>
-  <meta name="description" content="Zvanični srednji kurs NBS za EUR, USD, CHF. Brz konverter i tabela na jednoj stranici." />
+  <title>Kursna lista · RSD (NBS) — konverter i kursevi</title>
+  <meta name="description" content="Aktuelni srednji kurs NBS (EUR, USD, CHF) i brz konverter na jednoj stranici. Ultra brza, mobilna, sa kopiranjem i deljenjem rezultata." />
+  <meta property="og:title" content="Kursna lista · RSD (NBS)" />
+  <meta property="og:description" content="Srednji kurs NBS i konverter — danas." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#14161b" />
+  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="data:,">
+  <link rel="preload" href="./styles.css" as="style">
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <header class="wrap">
-    <h1>Kursna lista (NBS)</h1>
-    <p class="muted" id="updated">Ažurirano: —</p>
+  <header class="topbar wrap">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm1 5v3h3v2h-3v3h-2v-3H8V10h3V7h2Z"/></svg>
+      <strong>Kursna</strong><span>RSD</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="toggle-theme" class="ghost" aria-label="Dark/Light">🌗</button>
+      <a id="share-link" class="ghost" href="#" aria-label="Podeli">↗</a>
+    </div>
   </header>
 
-  <section class="wrap card">
-    <h2>Konverter</h2>
-    <div class="converter">
-      <label>Iznos</label>
-      <input id="amount" type="number" step="0.01" value="100" />
-      <label>Valuta</label>
-      <select id="currency"></select>
-      <div class="row">
-        <button id="btn-to-rsd">U RSD</button>
-        <button id="btn-from-rsd">Iz RSD</button>
+  <main class="wrap">
+    <section class="card hero">
+      <div class="hero-left">
+        <h1>Srednji kurs (NBS)</h1>
+        <p class="muted" id="updated">Ažurirano: —</p>
+        <div class="chips" id="chips">
+          <!-- currency chips injected -->
+        </div>
       </div>
-      <p id="result">—</p>
-      <small class="note">Koristi <b>srednji kurs NBS</b> (exchange_middle). Nema bankarskih provizija.</small>
-    </div>
-  </section>
+      <div class="hero-right converter">
+        <h2>Konverter</h2>
+        <div class="row small">
+          <label class="sr-only" for="amount">Iznos</label>
+          <input id="amount" type="number" step="0.01" value="100" inputmode="decimal" />
+          <select id="currency"></select>
+        </div>
+        <div class="row small">
+          <button id="btn-to-rsd" class="primary">U RSD</button>
+          <button id="btn-from-rsd" class="secondary">Iz RSD</button>
+          <button id="btn-copy" class="ghost" title="Kopiraj">⧉</button>
+        </div>
+        <p id="result" class="result">—</p>
+        <div class="quick">
+          <button data-q="50">50</button>
+          <button data-q="100">100</button>
+          <button data-q="200">200</button>
+          <button data-q="500">500</button>
+          <button data-q="1000">1000</button>
+        </div>
+        <small class="note">Koristi <b>srednji kurs NBS</b>. Bankarske provizije nisu uključene.</small>
+      </div>
+    </section>
 
-  <section class="wrap card">
-    <h2>Srednji kurs (NBS, danas)</h2>
-    <div class="scroll">
-      <table id="rates">
-        <thead>
-          <tr>
-            <th>Valuta</th>
-            <th>Srednji (RSD)</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <small class="note">Izvor: NBS (zvanični veb-servis). Objave radnim danima oko 08:00 Europe/Belgrade.</small>
-  </section>
+    <section class="card">
+      <div class="section-head">
+        <h2>Tabela kursa (danas)</h2>
+        <div class="tools">
+          <label class="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 2a8 8 0 1 1 5.293 13.707l4 4-1.414 1.414-4-4A8 8 0 0 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z"/></svg>
+            <input id="search" placeholder="Pretraga valute…" />
+          </label>
+        </div>
+      </div>
+      <div class="scroll">
+        <table id="rates" data-sort="code" data-dir="asc" aria-live="polite">
+          <thead>
+            <tr>
+              <th data-key="code">Valuta</th>
+              <th data-key="mid">Srednji (RSD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- rows -->
+          </tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span class="dot up"></span> više → jači RSD za {valutu} • 
+        <span class="dot down"></span> niže → slabiji RSD
+      </div>
+      <small class="note">Izvor: Narodna banka Srbije (objave radnim danima oko 08:00 Europe/Belgrade). Ova stranica je statična i učitava male JSON podatke radi brzine.</small>
+    </section>
+  </main>
 
-  <footer class="wrap">
-    <p class="muted">© Tvoj projekat · Izvor podataka: Narodna banka Srbije</p>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>Podaci ažurirani</div>
+
+  <footer class="wrap footer">
+    <div>© Tvoj projekat • <a href="https://www.nbs.rs" target="_blank" rel="noopener">NBS</a></div>
+    <div class="muted">Lite PWA: radi i oflajn (poslednji podaci)</div>
   </footer>
 
   <script src="./script.js" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+  </script>
 </body>
 </html>
