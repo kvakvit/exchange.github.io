@@ -1,0 +1,72 @@
+name: Update NBS rates
+
+on:
+  schedule:
+    # Every 60 minutes from 06:00 to 18:00 UTC (≈ 08:00–20:00 Europe/Belgrade, adjust for DST)
+    - cron: "0 6-18 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch NBS rates
+        run: |
+          python - << 'PY'
+          import json, datetime, pathlib
+          from urllib.request import urlopen
+          OUTPUT = pathlib.Path("public/rates.json")
+          CODES = ["EUR","USD","CHF"]
+          def get_today_all():
+            with urlopen("https://kurs.resenje.org/api/v1/rates/today", timeout=10) as r:
+              return json.loads(r.read().decode("utf-8")).get("rates", [])
+          all_rates = get_today_all()
+          wanted = []
+          for code in CODES:
+            row = next((x for x in all_rates if x.get("code")==code), None)
+            if not row: continue
+            mid = row.get("exchange_middle")
+            if mid is None:
+              rate = row.get("rate")
+              if rate is not None: mid = rate
+              else:
+                cb, cs = row.get("exchange_buy"), row.get("exchange_sell")
+                if cb is not None and cs is not None:
+                  mid = (cb + cs) / 2
+            if mid is None: continue
+            wanted.append({"code": code, "mid": round(float(mid), 6)})
+          out = {"g": datetime.datetime.utcnow().isoformat(timespec="seconds")+"Z", "rates": wanted}
+          OUTPUT.write_text(json.dumps(out, separators=(',',':')), encoding="utf-8")
+          print("written", OUTPUT)
+          PY
+      - name: Commit updated rates.json
+        run: |
+          if [[ `git status --porcelain` ]]; then
+            git config user.name "bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add public/rates.json
+            git commit -m "update rates"
+            git push
+          else
+            echo "no changes"
+          fi
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
