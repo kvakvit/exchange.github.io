@@ -3,7 +3,7 @@
   "short_name": "Kursna RSD",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0b0c10",
-  "theme_color": "#14161b",
+  "background_color": "#0e1117",
+  "theme_color": "#151922",
   "icons": []
 }

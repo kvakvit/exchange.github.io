@@ -1,132 +1,142 @@
 const state = { data:null, active:'EUR' };
-
-function qs(s){ return document.querySelector(s); }
-function qsa(s){ return Array.from(document.querySelectorAll(s)); }
+const Q = (s)=>document.querySelector(s);
+const QA = (s)=>Array.from(document.querySelectorAll(s));
 const fmt = (n)=> (Math.round(n*10000)/10000).toFixed(4);
+function rateOf(code){ return (state.data.rates.find(r=>r.code===code)||{}).mid||null; }
 
 async function load(){
   const res = await fetch('./rates.json', {cache:'no-cache'});
   const data = await res.json();
   state.data = data;
-  renderAll();
-  showToast('Podaci učitani');
+  buildChips();
+  fillSelect();
+  renderBig();
+  renderTable();
+  bindSearch();
+  Q('#stamp').textContent = 'Podaci ažurirani ' + new Date(data.g).toLocaleString();
 }
 
-function renderAll(){
-  const d = state.data;
-  qs('#updated').textContent = 'Ažurirano: ' + new Date(d.g).toLocaleString();
-
-  // chips + select
-  const chips = qs('#chips'); chips.innerHTML = '';
-  const sel = qs('#currency'); sel.innerHTML='';
-  const allCodes = d.rates.map(r=>r.code);
-  const order = ['EUR','USD','CHF', ...allCodes.filter(c=>!['EUR','USD','CHF'].includes(c))];
-  order.forEach(code=>{
-    if(!allCodes.includes(code)) return;
+function buildChips(){
+  const wrap = Q('#chips'); wrap.innerHTML='';
+  const order = ['EUR','USD','CHF', ...state.data.rates.map(r=>r.code).filter(c=>!['EUR','USD','CHF'].includes(c))];
+  const uniq = [...new Set(order)];
+  uniq.forEach(code=>{
     const b = document.createElement('button');
-    b.textContent = code; b.className = 'chip' + (state.active===code?' active':'');
-    b.onclick = ()=>{ state.active = code; renderActive(); };
-    chips.appendChild(b);
-    const o = document.createElement('option'); o.value=code; o.textContent=code; sel.appendChild(o);
+    b.textContent = code; b.className = state.active===code?'active':'';
+    b.onclick = ()=>{ state.active=code; renderBig(); highlightRow(); };
+    wrap.appendChild(b);
   });
-  sel.value = state.active;
-  renderActive();
-
-  // table
-  renderTable(d.rates);
 }
 
-function renderActive(){
-  const d = state.data;
-  qs('#currency').value = state.active;
-  // highlight row in table
-  qsa('#rates tbody tr').forEach(tr=>{ tr.classList.toggle('hl', tr.dataset.code===state.active); });
+function fillSelect(){
+  const s = Q('#currency'); s.innerHTML='';
+  state.data.rates.forEach(r=>{ const o=document.createElement('option'); o.value=r.code; o.textContent=r.code; s.appendChild(o); });
+  s.value = state.active;
+  s.onchange = ()=>{ state.active=s.value; renderBig(); highlightRow(); };
 }
 
-function renderTable(rows){
-  const tbody = qs('#rates tbody'); tbody.innerHTML='';
+function renderBig(){
+  const r = rateOf(state.active);
+  Q('#big-rate').textContent = r? fmt(r) : '—';
+}
+
+function renderTable(){
+  const tbody = Q('#rates tbody'); tbody.innerHTML='';
+  const rows = state.data.rates.slice().sort((a,b)=>a.code.localeCompare(b.code));
   rows.forEach(r=>{
-    const tr = document.createElement('tr');
-    tr.dataset.code = r.code;
-    const td1 = document.createElement('td'); td1.textContent = r.code; tr.appendChild(td1);
-    const td2 = document.createElement('td'); td2.textContent = fmt(r.mid); tr.appendChild(td2);
+    const tr = document.createElement('tr'); tr.dataset.code = r.code;
+    const flag = flagFor(r.code);
+    td(tr, `${flag} ${r.code}`);
+    td(tr, '—','right'); // kupovni (za banke u budućnosti)
+    td(tr, fmt(r.mid),'right'); // srednji NBS
+    td(tr, '—','right'); // prodajni
     tbody.appendChild(tr);
   });
+  QA('#rates thead th').forEach(th=> th.onclick = ()=> sortBy(th.dataset.key));
+  highlightRow();
+}
 
-  // sorting
-  qsa('#rates thead th').forEach(th=>{
-    th.onclick = () => {
-      const key = th.dataset.key;
-      const table = qs('#rates');
-      const dir = table.dataset.dir === 'asc' ? 'desc' : 'asc';
-      table.dataset.sort = key; table.dataset.dir = dir;
-      const sorted = rows.slice().sort((a,b)=>{
-        let va=a[key], vb=b[key];
-        if(key==='code'){ va=String(va); vb=String(vb); return dir==='asc'?va.localeCompare(vb):vb.localeCompare(va); }
-        va=Number(va); vb=Number(vb); return dir==='asc'?va-vb:vb-va;
-      });
-      renderTable(sorted);
-    };
+function td(tr, text, cls){ const c=document.createElement('td'); if(cls) c.className=cls; c.textContent=text; tr.appendChild(c); return c; }
+
+function sortBy(key){
+  const table = Q('#rates');
+  const dir = table.dataset.dir==='asc'?'desc':'asc';
+  table.dataset.dir = dir; table.dataset.sort = key;
+  const rows = Array.from(Q('#rates tbody').rows);
+  const idx = {code:0,buy:1,mid:2,sell:3}[key];
+  rows.sort((a,b)=>{
+    let va=a.cells[idx].textContent.trim(), vb=b.cells[idx].textContent.trim();
+    if(idx>0){ va=parseFloat(va)||0; vb=parseFloat(vb)||0; return dir==='asc'?va-vb:vb-va; }
+    return dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
   });
+  const tb = Q('#rates tbody'); rows.forEach(r=>tb.appendChild(r));
+}
 
-  // search
-  const search = qs('#search');
-  search.oninput = () => {
-    const q = search.value.trim().toUpperCase();
-    const filtered = rows.filter(r => r.code.includes(q));
-    renderTable(filtered);
+function bindSearch(){
+  const input = Q('#search');
+  input.oninput = ()=>{
+    const q = input.value.trim().toUpperCase();
+    QA('#rates tbody tr').forEach(tr=>{
+      tr.hidden = !tr.dataset.code.includes(q);
+    });
   };
+}
+
+function highlightRow(){
+  QA('#rates tbody tr').forEach(tr=> tr.classList.toggle('hl', tr.dataset.code===state.active));
+  Q('#currency').value = state.active;
 }
 
 function attachConverter(){
-  const amount = qs('#amount');
-  const sel = qs('#currency');
-  const result = qs('#result');
-  const rateOf = (code)=> (state.data.rates.find(x=>x.code===code)||{}).mid || null;
-  qs('#btn-to-rsd').onclick = ()=>{
-    const amt = parseFloat(amount.value||'0'); const c = sel.value; const r = rateOf(c);
-    if(!r){ result.textContent='Nema podataka'; return; }
-    result.textContent = `${fmt(amt*r)} RSD po kursu ${fmt(r)} (${c})`;
+  const amount = Q('#amount'), sel = Q('#currency'), res = Q('#result');
+  Q('#to-rsd').onclick = ()=>{
+    const r = rateOf(sel.value); const amt = parseFloat(amount.value||'0');
+    if(!r) return res.textContent='Nema podataka';
+    res.textContent = `${fmt(amt*r)} RSD po kursu ${fmt(r)} (${sel.value})`;
   };
-  qs('#btn-from-rsd').onclick = ()=>{
-    const amt = parseFloat(amount.value||'0'); const c = sel.value; const r = rateOf(c);
-    if(!r){ result.textContent='Nema podataka'; return; }
-    result.textContent = `${fmt(amt/r)} ${c} po kursu ${fmt(r)} (RSD→${c})`;
+  Q('#from-rsd').onclick = ()=>{
+    const r = rateOf(sel.value); const amt = parseFloat(amount.value||'0');
+    if(!r) return res.textContent='Nema podataka';
+    res.textContent = `${fmt(amt/r)} ${sel.value} po kursu ${fmt(r)} (RSD→${sel.value})`;
   };
-  qs('#btn-copy').onclick = async ()=>{
-    try{ await navigator.clipboard.writeText(result.textContent); showToast('Kopirano'); }catch{}
+  Q('#copy').onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(res.textContent); toast('Kopirano'); }catch{}
   };
-  qsa('.quick button').forEach(b=>{
-    b.onclick = ()=>{ amount.value = b.dataset.q; };
+  Q('#quick').addEventListener('click', e=>{
+    if(e.target.tagName==='BUTTON'){ amount.value = e.target.dataset.q; }
   });
-  sel.onchange = ()=>{ state.active = sel.value; renderActive(); };
 }
 
 function themeInit(){
-  const root = document.documentElement;
-  qs('#toggle-theme').onclick = ()=>{
-    const isDark = root.classList.toggle('theme-dark');
-    if(!isDark) root.classList.add('theme-light'); else root.classList.remove('theme-light');
-    localStorage.setItem('theme', isDark?'dark':'light');
+  const btn = Q('#toggle-theme');
+  const set = (mode)=>{
+    const root = document.documentElement;
+    if(mode==='light'){ root.classList.remove('theme-dark'); root.classList.add('theme-light'); btn.textContent='Dark'; }
+    else { root.classList.remove('theme-light'); root.classList.add('theme-dark'); btn.textContent='Light'; }
+    localStorage.setItem('theme', mode);
   };
-  const saved = localStorage.getItem('theme');
-  if(saved==='light'){ root.classList.remove('theme-dark'); root.classList.add('theme-light'); }
+  btn.onclick = ()=> set(document.documentElement.classList.contains('theme-dark')?'light':'dark');
+  set(localStorage.getItem('theme')||'dark');
 }
 
 function shareInit(){
-  const a = qs('#share-link');
-  a.onclick = (e)=>{
-    e.preventDefault();
+  const btn = Q('#share');
+  btn.onclick = async ()=>{
     const url = location.href;
-    if(navigator.share){ navigator.share({title:document.title, url}).catch(()=>{}); }
-    else { navigator.clipboard.writeText(url).then(()=>showToast('Link kopiran')); }
+    if(navigator.share){ try{ await navigator.share({title:document.title, url}); }catch(e){} }
+    else { await navigator.clipboard.writeText(url); toast('Link kopiran'); }
   };
 }
 
-function showToast(text){
-  const t = qs('#toast');
-  t.textContent = text; t.hidden = false;
-  clearTimeout(showToast._id); showToast._id = setTimeout(()=> t.hidden = true, 1800);
+function toast(text){
+  const t = Q('#toast'); t.textContent=text; t.hidden=false;
+  clearTimeout(toast._id); toast._id = setTimeout(()=> t.hidden=true, 1800);
+}
+
+// simple flag via emoji by currency (approximate)
+function flagFor(code){
+  const m = { EUR:'🇪🇺', USD:'🇺🇸', CHF:'🇨🇭', GBP:'🇬🇧', AUD:'🇦🇺', CAD:'🇨🇦' };
+  return m[code] || '';
 }
 
 window.addEventListener('DOMContentLoaded', ()=>{
